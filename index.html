@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplicando: Desafío de Parejas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para Iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti para la celebración -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-purple': '#6D28D9',
+                        'brand-pink': '#F43F5E',
+                        'brand-amber': '#F59E0B',
+                        'brand-emerald': '#10B981',
+                        'brand-cyan': '#06B6D4',
+                        'brand-blue': '#3B82F6',
+                    },
+                    fontFamily: {
+                        'display': ['Fredoka', 'sans-serif'],
+                        'body': ['Nunito', 'sans-serif'],
+                    },
+                    animation: {
+                        'shake': 'shake 0.4s ease-in-out',
+                        'pop': 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                        'float': 'float 3s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        shake: {
+                            '0%, 100%': { transform: 'translateX(0)' },
+                            '20%, 60%': { transform: 'translateX(-8px)' },
+                            '40%, 80%': { transform: 'translateX(8px)' },
+                        },
+                        pop: {
+                            '0%': { transform: 'scale(0.9)', opacity: '0.8' },
+                            '50%': { transform: 'scale(1.05)' },
+                            '100%': { transform: 'scale(1)', opacity: '1' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { filter: 'drop-shadow(0 0 15px rgba(245, 158, 11, 0.6))' },
+                            '50%': { filter: 'drop-shadow(0 0 25px rgba(244, 63, 94, 0.8))' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-6px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #3b0764 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        h1, h2, h3, .font-display {
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(30, 27, 75, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Card Interaction States */
+        .match-card {
+            cursor: pointer;
+            position: relative;
+        }
+
+        .match-card:hover:not(.matched):not(.selected) {
+            transform: translateY(-3px) scale(1.02);
+            border-color: rgba(245, 158, 11, 0.6);
+            box-shadow: 0 10px 20px -5px rgba(245, 158, 11, 0.25);
+        }
+
+        .match-card.selected {
+            background: rgba(245, 158, 11, 0.25) !important;
+            border-color: #F59E0B !important;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.5) !important;
+            transform: scale(1.03);
+        }
+
+        .match-card.matched {
+            background: rgba(16, 185, 129, 0.2) !important;
+            border-color: #10B981 !important;
+            color: #A7F3D0 !important;
+            cursor: default;
+            opacity: 0.85;
+            transform: scale(0.98);
+        }
+
+        .match-card.wrong {
+            background: rgba(244, 63, 94, 0.3) !important;
+            border-color: #F43F5E !important;
+            box-shadow: 0 0 20px rgba(244, 63, 94, 0.5) !important;
+        }
+
+        /* SVG Line Connection Canvas overlay */
+        #svg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .connection-line {
+            stroke-dasharray: 8;
+            animation: dash 1s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -16;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen justify-between overflow-x-hidden relative">
+
+    <!-- Header / Navigation Bar -->
+    <header class="w-full p-4 glass-panel sticky top-0 z-40 shadow-xl border-b border-white/10">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="showScreen('screen-welcome')">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-500 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-float">
+                    <i class="fa-solid fa-xmark text-white text-2xl font-black"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold tracking-wide bg-gradient-to-r from-amber-300 via-rose-300 to-purple-300 bg-clip-text text-transparent">
+                        Multipli<span class="text-amber-400">Match</span>
+                    </h1>
+                    <p class="text-xs text-purple-200 opacity-80 hidden sm:block">Enlaza operaciones y resultados</p>
+                </div>
+            </div>
+
+            <!-- In-game Indicators -->
+            <div id="game-stats-bar" class="hidden flex items-center gap-3 sm:gap-6">
+                <!-- Level Indicator -->
+                <div class="bg-purple-900/60 border border-purple-400/30 px-3 py-1 rounded-xl text-center">
+                    <span class="text-[10px] uppercase text-purple-300 block font-bold">Nivel</span>
+                    <span id="stat-level-text" class="font-extrabold text-amber-300 text-xs sm:text-sm">1 / 3</span>
+                </div>
+
+                <!-- Timer -->
+                <div class="bg-slate-900/60 border border-amber-500/30 px-3 py-1 rounded-xl text-center flex items-center gap-2">
+                    <i class="fa-solid fa-stopwatch text-amber-400 text-sm"></i>
+                    <span id="stat-timer" class="font-mono font-bold text-amber-300 text-sm sm:text-base">00:00</span>
+                </div>
+
+                <!-- Score -->
+                <div class="bg-slate-900/60 border border-emerald-500/30 px-3 py-1 rounded-xl text-center">
+                    <span class="text-[10px] uppercase text-emerald-300 block font-bold">Puntos</span>
+                    <span id="stat-score" class="font-mono font-bold text-emerald-300 text-sm sm:text-base">0</span>
+                </div>
+            </div>
+
+            <!-- Instructions button -->
+            <button onclick="toggleInstructionsModal(true)" class="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-purple-200 hover:text-white transition flex items-center gap-2 text-sm font-semibold">
+                <i class="fa-solid fa-circle-info text-amber-400"></i>
+                <span class="hidden md:inline">Instrucciones</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="flex-grow flex items-center justify-center p-3 sm:p-6 relative">
+        
+        <!-- Ambient background lighting -->
+        <div class="absolute top-1/4 left-10 w-80 h-80 bg-purple-600/20 rounded-full filter blur-3xl pointer-events-none"></div>
+        <div class="absolute bottom-10 right-10 w-96 h-96 bg-rose-600/20 rounded-full filter blur-3xl pointer-events-none"></div>
+
+        <!-- SCREEN 1: WELCOME & LEVEL SELECTOR -->
+        <section id="screen-welcome" class="w-full max-w-4xl mx-auto space-y-6 py-4">
+            <div class="text-center space-y-3">
+                <div class="inline-block px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs sm:text-sm font-bold tracking-wide">
+                    ✨ ¡Aprende Multiplicando de Forma Divertida!
+                </div>
+                <h2 class="text-4xl sm:text-6xl font-extrabold text-white tracking-tight">
+                    Enlaza la <span class="bg-gradient-to-r from-amber-300 via-rose-400 to-purple-400 bg-clip-text text-transparent">Multiplicación</span> con su Resultado
+                </h2>
+                <p class="text-slate-300 max-w-2xl mx-auto text-sm sm:text-base">
+                    Haz clic en una operación a la izquierda y conéctala con su respuesta correcta a la derecha. ¡Supera los 3 niveles con la máxima puntuación!
+                </p>
+            </div>
+
+            <!-- Level Selector Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-8">
+                
+                <!-- Level 1 -->
+                <div onclick="startGameAtLevel(1)" class="glass-card p-6 rounded-3xl cursor-pointer hover:border-amber-400 hover:bg-white/10 transition group flex flex-col justify-between border-t-4 border-amber-400 shadow-xl">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="px-3 py-1 bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold rounded-full">Nivel 1</span>
+                            <i class="fa-solid fa-star text-amber-400 text-xl group-hover:scale-125 transition"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Tablas Básicas</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                            Repasa las tablas de multiplicar clásicas del 2 al 10. ¡Ideal para calentar motores!
+                        </p>
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-2xl text-center border border-white/5 font-mono text-xs text-amber-300">
+                        Ej: 7 × 8 = 56 | 9 × 6 = 54
+                    </div>
+                </div>
+
+                <!-- Level 2 -->
+                <div onclick="startGameAtLevel(2)" class="glass-card p-6 rounded-3xl cursor-pointer hover:border-rose-400 hover:bg-white/10 transition group flex flex-col justify-between border-t-4 border-rose-400 shadow-xl">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="px-3 py-1 bg-rose-500/20 border border-rose-400/40 text-rose-300 text-xs font-bold rounded-full">Nivel 2</span>
+                            <div class="text-rose-400 text-xl group-hover:scale-125 transition">
+                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Decenas y Ceros</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                            Multiplicaciones por 10, 100, decenas y centenas completas. ¡Aplica el truco de los ceros!
+                        </p>
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-2xl text-center border border-white/5 font-mono text-xs text-rose-300">
+                        Ej: 40 × 5 = 200 | 12 × 100 = 1200
+                    </div>
+                </div>
+
+                <!-- Level 3 -->
+                <div onclick="startGameAtLevel(3)" class="glass-card p-6 rounded-3xl cursor-pointer hover:border-purple-400 hover:bg-white/10 transition group flex flex-col justify-between border-t-4 border-purple-400 shadow-xl">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="px-3 py-1 bg-purple-500/20 border border-purple-400/40 text-purple-300 text-xs font-bold rounded-full">Nivel 3</span>
+                            <div class="text-purple-400 text-xl group-hover:scale-125 transition">
+                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Desafío Máximo</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                            Estimación, cálculo mental rápido, números de dos dígitos y propiedades especiales.
+                        </p>
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-2xl text-center border border-white/5 font-mono text-xs text-purple-300">
+                        Ej: 15 × 6 = 90 | 25 × 8 = 200
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Start Adventure Button -->
+            <div class="text-center pt-4">
+                <button onclick="startGameAtLevel(1)" class="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-rose-500 to-purple-600 hover:from-amber-500 hover:to-purple-700 text-white font-extrabold text-lg shadow-2xl shadow-rose-500/30 transform hover:-translate-y-1 transition duration-200">
+                    <i class="fa-solid fa-play mr-2"></i> ¡Iniciar Aventura Completa (3 Niveles)!
+                </button>
+            </div>
+        </section>
+
+        <!-- SCREEN 2: GAMEPLAY (MATCHING BOARD) -->
+        <section id="screen-game" class="w-full max-w-4xl mx-auto hidden space-y-4 relative">
+            
+            <!-- SVG Canvas overlay for connecting lines -->
+            <svg id="svg-canvas">
+                <!-- Lines are dynamically drawn here -->
+            </svg>
+
+            <!-- Round progress bar & header -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-3 shadow-lg border border-white/10">
+                <div class="w-full sm:w-1/2 space-y-1">
+                    <div class="flex justify-between text-xs font-bold text-purple-200">
+                        <span id="level-title-display">Nivel 1: Tablas Básicas</span>
+                        <span id="pairs-left-display">Parejas: 0/6</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/10">
+                        <div id="level-progress-bar" class="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 text-xs font-bold">
+                    <div class="bg-slate-900/70 px-3 py-1.5 rounded-xl border border-white/10 text-slate-300">
+                        Aciertos: <span id="round-matches" class="text-emerald-400 font-extrabold text-sm">0</span>
+                    </div>
+                    <div class="bg-slate-900/70 px-3 py-1.5 rounded-xl border border-white/10 text-slate-300">
+                        Intentos: <span id="round-attempts" class="text-amber-400 font-extrabold text-sm">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Matching Board Grid -->
+            <div class="grid grid-cols-2 gap-4 sm:gap-8 relative z-20 py-2">
+                
+                <!-- Left Column: Operations -->
+                <div class="space-y-3" id="left-column">
+                    <h4 class="text-xs font-extrabold uppercase tracking-widest text-amber-400 text-center mb-2">
+                        <i class="fa-solid fa-calculator mr-1"></i> Multiplicación
+                    </h4>
+                    <!-- Dynamic Left Cards -->
+                </div>
+
+                <!-- Right Column: Results -->
+                <div class="space-y-3" id="right-column">
+                    <h4 class="text-xs font-extrabold uppercase tracking-widest text-rose-400 text-center mb-2">
+                        <i class="fa-solid fa-equals mr-1"></i> Resultado
+                    </h4>
+                    <!-- Dynamic Right Cards -->
+                </div>
+
+            </div>
+
+            <!-- Floating Feedback Banner -->
+            <div id="quick-feedback" class="text-center min-h-[32px] flex items-center justify-center">
+                <span id="quick-feedback-text" class="text-sm font-bold px-4 py-1.5 rounded-full bg-slate-900/80 border border-white/10 text-purple-200 shadow-md">
+                    ¡Selecciona una operación y luego su resultado!
+                </span>
+            </div>
+
+        </section>
+
+        <!-- SCREEN 3: END OF LEVEL / GAME CELEBRATION -->
+        <section id="screen-results" class="w-full max-w-2xl mx-auto hidden py-4">
+            <div class="glass-panel p-6 sm:p-8 rounded-3xl text-center space-y-6 shadow-2xl border border-white/20 relative overflow-hidden">
+                
+                <!-- Badge & Trophy Icon -->
+                <div class="inline-flex p-4 rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 text-white text-5xl shadow-xl shadow-rose-500/40 animate-pulse-glow mb-1">
+                    <i id="res-trophy-icon" class="fa-solid fa-trophy"></i>
+                </div>
+
+                <div>
+                    <h2 id="res-title" class="text-3xl sm:text-5xl font-extrabold text-white mb-2">¡Felicitaciones!</h2>
+                    <p id="res-subtitle" class="text-slate-300 text-sm sm:text-base max-w-md mx-auto">
+                        ¡Has completado el juego de multiplicación con gran éxito!
+                    </p>
+                </div>
+
+                <!-- Star Rating Display -->
+                <div class="flex justify-center gap-3 text-4xl text-amber-400 py-1" id="stars-container">
+                    <i class="fa-solid fa-star"></i>
+                    <i class="fa-solid fa-star"></i>
+                    <i class="fa-solid fa-star"></i>
+                </div>
+
+                <!-- Stats Summary Cards -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-slate-900/70 p-3 rounded-2xl border border-white/10">
+                        <span class="text-[11px] text-slate-400 block font-medium">Puntos Totales</span>
+                        <span id="res-score" class="text-2xl font-black text-amber-400">0</span>
+                    </div>
+                    <div class="bg-slate-900/70 p-3 rounded-2xl border border-white/10">
+                        <span class="text-[11px] text-slate-400 block font-medium">Precisión</span>
+                        <span id="res-accuracy" class="text-2xl font-black text-emerald-400">100%</span>
+                    </div>
+                    <div class="bg-slate-900/70 p-3 rounded-2xl border border-white/10">
+                        <span class="text-[11px] text-slate-400 block font-medium">Tiempo Total</span>
+                        <span id="res-time" class="text-2xl font-black text-cyan-400">00:00</span>
+                    </div>
+                    <div class="bg-slate-900/70 p-3 rounded-2xl border border-white/10">
+                        <span class="text-[11px] text-slate-400 block font-medium">Intentos</span>
+                        <span id="res-attempts" class="text-2xl font-black text-rose-400">0</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-col sm:flex-row gap-3 pt-4">
+                    <button onclick="showScreen('screen-welcome')" class="flex-1 py-3.5 px-6 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold transition border border-white/10 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-house"></i>
+                        <span>Menú Principal</span>
+                    </button>
+                    <button id="res-action-btn" onclick="retryOrNextLevel()" class="flex-1 py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-rose-500 to-purple-600 hover:from-amber-500 hover:to-purple-700 text-white font-bold shadow-lg transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span id="res-btn-text">Jugar de Nuevo</span>
+                    </button>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- INSTRUCTIONS MODAL -->
+    <div id="instructions-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel border border-white/20 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad text-amber-400"></i> ¿Cómo Jugar?
+                </h3>
+                <button onclick="toggleInstructionsModal(false)" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-sm text-slate-200">
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center shrink-0">1</div>
+                    <p>Haz clic o toca una tarjeta en la columna de la izquierda (**Multiplicación**).</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-rose-500/20 text-rose-300 font-bold flex items-center justify-center shrink-0">2</div>
+                    <p>Luego haz clic en el resultado correspondiente en la columna de la derecha (**Resultado**).</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-center shrink-0">3</div>
+                    <p>Si la respuesta es correcta, las tarjetas se **conectarán en verde**. Si es incorrecta, se marcarán en **rojo** y podrás volver a intentarlo.</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="w-7 h-7 rounded-full bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center shrink-0">4</div>
+                    <p>¡Empareja todas las tarjetas en el menor tiempo posible y con la menor cantidad de errores para ganar 3 estrellas!</p>
+                </div>
+            </div>
+
+            <div class="pt-2 text-center">
+                <button onclick="toggleInstructionsModal(false)" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-rose-500 text-white font-bold transition">
+                    ¡Entendido, a jugar!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full text-center p-3 text-xs text-slate-400 border-t border-white/5 relative z-30">
+        <p>MultipliMatch &copy; 2026 - Juego de Aprendizaje Matemático Interactivo</p>
+    </footer>
+
+    <!-- GAME LOGIC JAVASCRIPT -->
+    <script>
+        // LEVELS DATA REPOSITORY
+        const GAME_LEVELS = {
+            1: {
+                title: "Nivel 1: Tablas Básicas (2 al 10)",
+                pairs: [
+                    { op: "7 × 8", res: "56" },
+                    { op: "9 × 6", res: "54" },
+                    { op: "4 × 8", res: "32" },
+                    { op: "6 × 7", res: "42" },
+                    { op: "9 × 9", res: "81" },
+                    { op: "12 × 5", res: "60" }
+                ]
+            },
+            2: {
+                title: "Nivel 2: Decenas, Centenas y Ceros",
+                pairs: [
+                    { op: "40 × 5", res: "200" },
+                    { op: "12 × 10", res: "120" },
+                    { op: "30 × 30", res: "900" },
+                    { op: "80 × 6", res: "480" },
+                    { op: "15 × 100", res: "1500" },
+                    { op: "70 × 4", res: "280" }
+                ]
+            },
+            3: {
+                title: "Nivel 3: Desafío de Razonamiento y Estimación",
+                pairs: [
+                    { op: "15 × 6", res: "90" },
+                    { op: "25 × 8", res: "200" },
+                    { op: "99 × 1", res: "99" },
+                    { op: "14 × 5", res: "70" },
+                    { op: "18 × 4", res: "72" },
+                    { op: "50 × 12", res: "600" }
+                ]
+            }
+        };
+
+        // Game State Variables
+        let currentLevel = 1;
+        let selectedLeft = null;
+        let selectedRight = null;
+        let matchedPairs = []; // Array of pair IDs matched
+        let levelPairs = [];
+        let leftItems = [];
+        let rightItems = [];
+        
+        let attemptsCount = 0;
+        let totalScore = 0;
+        let totalTimeSeconds = 0;
+        let timerInterval = null;
+        let isProcessingMatch = false;
+
+        // Sound Effects (Web Audio API synthetized for smooth playback without external assets)
+        const AudioFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playSelect() {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                } catch (e) {}
+            },
+            playMatch() {
+                try {
+                    this.init();
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+                    osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(now + 0.3);
+                } catch (e) {}
+            },
+            playError() {
+                try {
+                    this.init();
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.setValueAtTime(160, now + 0.12);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(now + 0.25);
+                } catch (e) {}
+            }
+        };
+
+        // Navigation
+        function showScreen(screenId) {
+            document.getElementById('screen-welcome').classList.add('hidden');
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-results').classList.add('hidden');
+
+            document.getElementById(screenId).classList.remove('hidden');
+
+            const statsBar = document.getElementById('game-stats-bar');
+            if (screenId === 'screen-game') {
+                statsBar.classList.remove('hidden');
+            } else {
+                statsBar.classList.add('hidden');
+                clearInterval(timerInterval);
+            }
+            clearConnections();
+        }
+
+        function toggleInstructionsModal(show) {
+            document.getElementById('instructions-modal').classList.toggle('hidden', !show);
+        }
+
+        // Start Level Logic
+        function startGameAtLevel(levelNum) {
+            currentLevel = levelNum;
+            matchedPairs = [];
+            attemptsCount = 0;
+            selectedLeft = null;
+            selectedRight = null;
+            isProcessingMatch = false;
+
+            if (levelNum === 1) {
+                totalScore = 0;
+                totalTimeSeconds = 0;
+            }
+
+            const levelData = GAME_LEVELS[levelNum];
+            document.getElementById('level-title-display').textContent = levelData.title;
+            document.getElementById('stat-level-text').textContent = `${levelNum} / 3`;
+
+            // Prepare Left and Right Items
+            levelPairs = levelData.pairs.map((p, index) => ({ id: index, ...p }));
+            leftItems = shuffleArray([...levelPairs]);
+            rightItems = shuffleArray([...levelPairs]);
+
+            renderBoard();
+            updateUIStats();
+            showScreen('screen-game');
+            startTimer();
+
+            // Resize listener for drawing SVG lines accurately
+            window.addEventListener('resize', drawConnections);
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                totalTimeSeconds++;
+                const mins = Math.floor(totalTimeSeconds / 60).toString().padStart(2, '0');
+                const secs = (totalTimeSeconds % 60).toString().padStart(2, '0');
+                document.getElementById('stat-timer').textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // Render Matching Cards
+        function renderBoard() {
+            const leftCol = document.getElementById('left-column');
+            const rightCol = document.getElementById('right-column');
+
+            // Keep headers
+            leftCol.innerHTML = `
+                <h4 class="text-xs font-extrabold uppercase tracking-widest text-amber-400 text-center mb-2">
+                    <i class="fa-solid fa-calculator mr-1"></i> Multiplicación
+                </h4>`;
+            
+            rightCol.innerHTML = `
+                <h4 class="text-xs font-extrabold uppercase tracking-widest text-rose-400 text-center mb-2">
+                    <i class="fa-solid fa-equals mr-1"></i> Resultado
+                </h4>`;
+
+            // Render Left Items
+            leftItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `match-card glass-card p-4 rounded-2xl flex items-center justify-between text-base sm:text-lg font-bold font-mono text-amber-200 animate-pop`;
+                card.dataset.id = item.id;
+                card.dataset.side = 'left';
+                card.id = `left-card-${item.id}`;
+                card.innerHTML = `
+                    <span>${item.op}</span>
+                    <i class="fa-solid fa-circle-dot text-amber-400/50 text-xs card-dot"></i>
+                `;
+                card.onclick = () => handleCardClick(card, item.id, 'left');
+                leftCol.appendChild(card);
+            });
+
+            // Render Right Items
+            rightItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `match-card glass-card p-4 rounded-2xl flex items-center justify-between text-base sm:text-lg font-bold font-mono text-rose-200 animate-pop`;
+                card.dataset.id = item.id;
+                card.dataset.side = 'right';
+                card.id = `right-card-${item.id}`;
+                card.innerHTML = `
+                    <i class="fa-solid fa-circle-dot text-rose-400/50 text-xs card-dot"></i>
+                    <span>${item.res}</span>
+                `;
+                card.onclick = () => handleCardClick(card, item.id, 'right');
+                rightCol.appendChild(card);
+            });
+
+            setQuickFeedback("¡Haz clic en una multiplicación y luego en su resultado!");
+        }
+
+        // Click Handler for Cards
+        function handleCardClick(cardElement, pairId, side) {
+            if (isProcessingMatch || cardElement.classList.contains('matched')) return;
+
+            AudioFX.playSelect();
+
+            if (side === 'left') {
+                // Unselect previous left card if any
+                if (selectedLeft) {
+                    selectedLeft.element.classList.remove('selected');
+                }
+                selectedLeft = { id: pairId, element: cardElement };
+                cardElement.classList.add('selected');
+            } else {
+                // Side is right
+                if (selectedRight) {
+                    selectedRight.element.classList.remove('selected');
+                }
+                selectedRight = { id: pairId, element: cardElement };
+                cardElement.classList.add('selected');
+            }
+
+            // Check if both sides selected
+            if (selectedLeft && selectedRight) {
+                checkMatch();
+            }
+        }
+
+        // Validate Selected Pair
+        function checkMatch() {
+            isProcessingMatch = true;
+            attemptsCount++;
+
+            const isCorrect = selectedLeft.id === selectedRight.id;
+
+            if (isCorrect) {
+                // MATCH SUCCESS
+                AudioFX.playMatch();
+                matchedPairs.push(selectedLeft.id);
+                totalScore += 100;
+
+                selectedLeft.element.classList.remove('selected');
+                selectedRight.element.classList.remove('selected');
+
+                selectedLeft.element.classList.add('matched');
+                selectedRight.element.classList.add('matched');
+
+                setQuickFeedback("¡Correcto! Excelente cálculo 🎉", "text-emerald-400");
+
+                // Reset selections
+                const leftSaved = selectedLeft;
+                const rightSaved = selectedRight;
+                selectedLeft = null;
+                selectedRight = null;
+                isProcessingMatch = false;
+
+                updateUIStats();
+                drawConnections();
+
+                // Check level completion
+                if (matchedPairs.length === levelPairs.length) {
+                    setTimeout(() => {
+                        handleLevelComplete();
+                    }, 800);
+                }
+
+            } else {
+                // MATCH ERROR
+                AudioFX.playError();
+                selectedLeft.element.classList.add('wrong', 'animate-shake');
+                selectedRight.element.classList.add('wrong', 'animate-shake');
+
+                setQuickFeedback("¡Inténtalo de nuevo! Revisa la operación ❌", "text-rose-400");
+
+                setTimeout(() => {
+                    if (selectedLeft) selectedLeft.element.classList.remove('selected', 'wrong', 'animate-shake');
+                    if (selectedRight) selectedRight.element.classList.remove('selected', 'wrong', 'animate-shake');
+
+                    selectedLeft = null;
+                    selectedRight = null;
+                    isProcessingMatch = false;
+                }, 600);
+
+                updateUIStats();
+            }
+        }
+
+        // Draw connecting SVG lines for matched cards
+        function drawConnections() {
+            const svg = document.getElementById('svg-canvas');
+            svg.innerHTML = ''; // Clear existing lines
+
+            const containerRect = document.getElementById('screen-game').getBoundingClientRect();
+
+            matchedPairs.forEach(id => {
+                const leftCard = document.getElementById(`left-card-${id}`);
+                const rightCard = document.getElementById(`right-card-${id}`);
+
+                if (leftCard && rightCard) {
+                    const leftRect = leftCard.getBoundingClientRect();
+                    const rightRect = rightCard.getBoundingClientRect();
+
+                    // Calculate center right point of left card, and center left point of right card
+                    const x1 = leftRect.right - containerRect.left;
+                    const y1 = leftRect.top + leftRect.height / 2 - containerRect.top;
+
+                    const x2 = rightRect.left - containerRect.left;
+                    const y2 = rightRect.top + rightRect.height / 2 - containerRect.top;
+
+                    // Draw smooth cubic bezier curve or straight line
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const dx = (x2 - x1) * 0.5;
+                    const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', '#10B981');
+                    path.setAttribute('stroke-width', '4');
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke-linecap', 'round');
+                    path.setAttribute('class', 'connection-line');
+
+                    svg.appendChild(path);
+                }
+            });
+        }
+
+        function clearConnections() {
+            const svg = document.getElementById('svg-canvas');
+            if (svg) svg.innerHTML = '';
+        }
+
+        // Update In-Game Stats Header
+        function updateUIStats() {
+            document.getElementById('stat-score').textContent = totalScore;
+            document.getElementById('round-matches').textContent = matchedPairs.length;
+            document.getElementById('round-attempts').textContent = attemptsCount;
+            document.getElementById('pairs-left-display').textContent = `Parejas: ${matchedPairs.length}/${levelPairs.length}`;
+
+            const progressPct = (matchedPairs.length / levelPairs.length) * 100;
+            document.getElementById('level-progress-bar').style.width = `${progressPct}%`;
+        }
+
+        function setQuickFeedback(msg, colorClass = "text-purple-200") {
+            const el = document.getElementById('quick-feedback-text');
+            el.textContent = msg;
+            el.className = `text-sm font-bold px-4 py-1.5 rounded-full bg-slate-900/90 border border-white/10 ${colorClass} shadow-md`;
+        }
+
+        // Handle Completion of a Level
+        function handleLevelComplete() {
+            if (currentLevel < 3) {
+                // Advance to next level automatically or prompt
+                triggerConfetti(30);
+                setTimeout(() => {
+                    currentLevel++;
+                    startGameAtLevel(currentLevel);
+                }, 1000);
+            } else {
+                // Game Finished Entirely!
+                finishWholeGame();
+            }
+        }
+
+        // End Game Results Screen
+        function finishWholeGame() {
+            clearInterval(timerInterval);
+            showScreen('screen-results');
+
+            // Calculate metrics
+            const totalPairs = 18; // 6 * 3 levels
+            const accuracy = Math.min(100, Math.round((totalPairs / Math.max(attemptsCount, totalPairs)) * 100));
+            
+            document.getElementById('res-score').textContent = totalScore;
+            document.getElementById('res-accuracy').textContent = `${accuracy}%`;
+            document.getElementById('res-attempts').textContent = attemptsCount;
+
+            const mins = Math.floor(totalTimeSeconds / 60).toString().padStart(2, '0');
+            const secs = (totalTimeSeconds % 60).toString().padStart(2, '0');
+            document.getElementById('res-time').textContent = `${mins}:${secs}`;
+
+            // Stars Calculation
+            const starsContainer = document.getElementById('stars-container');
+            let starsCount = 1;
+            if (accuracy >= 85) starsCount = 3;
+            else if (accuracy >= 65) starsCount = 2;
+
+            let starsHtml = '';
+            for (let i = 1; i <= 3; i++) {
+                if (i <= starsCount) {
+                    starsHtml += `<i class="fa-solid fa-star text-amber-400 animate-pop"></i>`;
+                } else {
+                    starsHtml += `<i class="fa-regular fa-star text-slate-600"></i>`;
+                }
+            }
+            starsContainer.innerHTML = starsHtml;
+
+            // Action Button Text
+            document.getElementById('res-btn-text').textContent = "Jugar de Nuevo";
+
+            // Trigger celebration
+            triggerConfetti(150);
+        }
+
+        function retryOrNextLevel() {
+            startGameAtLevel(1);
+        }
+
+        // Confetti Generator Helper
+        function triggerConfetti(particleCount = 100) {
+            try {
+                confetti({
+                    particleCount: particleCount,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            } catch(e) {}
+        }
+
+        // Utility: Array Shuffle Algorithm
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+    </script>
+</body>
+</html>
